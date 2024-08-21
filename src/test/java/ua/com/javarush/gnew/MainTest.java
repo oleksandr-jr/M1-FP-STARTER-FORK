@@ -398,6 +398,7 @@ class MainTest {
         @Test
         @DisplayName("File not exists exception should be handled")
         void fileNotExists() {
+
             Path fakeFilePath = Path.of("/fake/path/file.txt");
             String[] params = new String[3];
             params[0] = ENCRYPT_COMMAND;
