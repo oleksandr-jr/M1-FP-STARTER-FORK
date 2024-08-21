@@ -22,8 +22,6 @@ public class Cypher {
         return builder.toString();
     }
 
-    // this, the, is, not, one, of, the, that.
-
     private Character processSymbol(char symbol, ArrayList<Character> rotatedAlphabet) {
         if (!originalAlphabet.contains(symbol)) {
             return symbol;

@@ -3,7 +3,7 @@ package ua.com.javarush.gnew.runner;
 import java.nio.file.Path;
 
 public class ArgumentsParser {
-    public RunOptions parseArguments(String[] args) {
+    public RunOptions parse(String[] args) {
         Command command = null;
         Integer key = null;
         Path filePath = null;
@@ -23,7 +23,6 @@ public class ArgumentsParser {
                 case "-bf":
                     command = Command.BRUTEFORCE;
                     break;
-
                 case "-k":
                     if (i + 1 < args.length) {
                         key = Integer.parseInt(args[++i]);
@@ -49,11 +48,7 @@ public class ArgumentsParser {
             throw new IllegalArgumentException("Command (-e, -d, or -bf) is required");
         }
 
-        if ("bruteforce".equals(command) && key != null) {
-            throw new IllegalArgumentException("Key should not be provided with brute force mode");
-        }
-
-        if (!"bruteforce".equals(command) && key == null) {
+        if (key == null) {
             throw new IllegalArgumentException("Key is required for encrypt or decrypt mode");
         }
 
