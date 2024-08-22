@@ -103,7 +103,6 @@ class MainTest {
 
     @BeforeEach
     public void setUp() throws IOException {
-
         try {
             inputFilePath_EN = Files.createFile(tempDir.resolve("EN_Text.txt"));
             inputFilePath_UA = Files.createFile(tempDir.resolve("UA_Text.txt"));
