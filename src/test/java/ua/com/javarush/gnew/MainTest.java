@@ -116,7 +116,6 @@ class MainTest {
 
     private Path execute(String command, Path inputFilePath, int key) {
         List<Path> filesBefore = listFiles(tempDir);
-
         List<String> params = List.of(command, "-k", String.valueOf(key), "-f", inputFilePath.toString());
 
         try {
