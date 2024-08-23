@@ -15,16 +15,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-
 import static org.junit.jupiter.api.Assertions.*;
 
 class MainTest {
 
     private static final boolean UKRAINIAN_LANGUAGE_TEST = false;
-    private final String ENCRYPT_COMMAND = "-e";
-    private final String DECRYPT_COMMAND = "-d";
-    private final String BF_COMMAND = "-bf";
-    private final String hamlet_EN = """
+    private static final String ENCRYPT_COMMAND = "-e";
+    private static final String DECRYPT_COMMAND = "-d";
+    private static final String BF_COMMAND = "-bf";
+    private static final String HAMLET_EN = """
             THE TRAGEDY OF HAMLET, PRINCE OF DENMARK
 
 
@@ -63,7 +62,7 @@ class MainTest {
               Ghost of Hamlet's Father.
 
               Lords, ladies, Officers, Soldiers, Sailors, Messengers, Attendants.""";
-    private final String orwell_UA = """
+    private static final String ORWELL_UA = """
             Стояла ясна та прохолодна квітнева днина, на годинниках пробило тринадцяту годину.
             Вінстон Сміт, притискуючи підборіддя до грудей щоб сховатися від підступного вітру,
             швидко ковзнув крізь скляні двері великого панельного будинку що звався "Перемога",
@@ -95,82 +94,63 @@ class MainTest {
             що був уніформою його партії. Його волосся було яскраво світлим, його обличчя бул
             природньо рум'яним та життєрадісним, його шкіра була огрубілою від господарчого
             мила та тупого леза бритви, та вкрите крижаною маскою зими яка щойно скінчилася.
-            """;
-    private Path inputFilePath_EN;
-    private Path inputFilePath_UA;
+            """; // 1984 by George Orwell
+
+    private Path inputFilePathEN;
+    private Path inputFilePathUA;
+
     @TempDir
     private Path tempDir;
 
     @BeforeEach
     public void setUp() throws IOException {
-        try {
-            inputFilePath_EN = Files.createFile(tempDir.resolve("EN_Text.txt"));
-            inputFilePath_UA = Files.createFile(tempDir.resolve("UA_Text.txt"));
-        } catch (InvalidPathException ipe) {
-            System.err.println("error creating temporary test file in " + this.getClass().getSimpleName());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        Files.writeString(inputFilePath_EN, hamlet_EN);
-        Files.writeString(inputFilePath_UA, orwell_UA);
+        inputFilePathEN = createTestFile("EN_Text.txt", HAMLET_EN);
+        inputFilePathUA = createTestFile("UA_Text.txt", ORWELL_UA);
     }
 
-    private Path execute(String command, Path inputFilePath, Integer key) {
-        List<Path> filesBeforeEncryption = getFilesList(tempDir);
+    private Path createTestFile(String fileName, String content) throws IOException {
+        Path filePath = tempDir.resolve(fileName);
+        Files.writeString(filePath, content);
+        return filePath;
+    }
 
-        ArrayList<String> paramsList = new ArrayList<>();
+    private Path execute(String command, Path inputFilePath, int key) {
+        List<Path> filesBefore = listFiles(tempDir);
 
-        paramsList.add(command);
-        paramsList.add("-k");
-        paramsList.add(key.toString());
-        paramsList.add("-f");
-        paramsList.add(inputFilePath.toString());
-
+        List<String> params = List.of(command, "-k", String.valueOf(key), "-f", inputFilePath.toString());
 
         try {
-            Main.main(paramsList.toArray(new String[0]));
+            Main.main(params.toArray(new String[0]));
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Execution failed", e);
         }
 
-        return getCreatedFile(filesBeforeEncryption);
+        return findNewFile(filesBefore);
     }
 
-    private String readFile(Path inputFilePath) {
-        Assumptions.assumeTrue(Files.exists(inputFilePath));
+    private List<Path> listFiles(Path directory) {
+        try (Stream<Path> stream = Files.list(directory)) {
+            return stream.toList();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to list files in directory: " + directory, e);
+        }
+    }
+
+    private Path findNewFile(List<Path> filesBefore) {
+        List<Path> filesAfter = listFiles(tempDir);
+        return filesAfter.stream()
+                .filter(file -> !filesBefore.contains(file))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No new file was created"));
+    }
+
+    private String readFile(Path filePath) {
+        Assumptions.assumeTrue(Files.exists(filePath), "File does not exist: " + filePath);
         try {
-            return Files.readString(inputFilePath);
+            return Files.readString(filePath);
         } catch (IOException e) {
+            fail("Failed to read file: " + filePath, e);
             return null;
-        }
-    }
-
-    private List<Path> getFilesList(Path path) {
-        try (Stream<Path> filesList = Files.list(path)) {
-            return filesList.toList();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private Path getCreatedFile(List<Path> filesBefore) {
-        List<Path> filesAfter = getFilesList(tempDir);
-
-        Optional<Path> newFile = filesAfter.stream().filter(file -> !filesBefore.contains(file)).findFirst();
-
-        if (newFile.isPresent()) {
-            return newFile.get();
-        } else {
-            String message = "New file not found" +
-                    '\n' +
-                    "Files before: " +
-                    filesBefore +
-                    '\n' +
-                    "Files after:" +
-                    '\n' +
-                    filesAfter;
-            throw new RuntimeException(message);
         }
     }
 
@@ -181,10 +161,11 @@ class MainTest {
         @Nested
         @DisplayName("ENCRYPT")
         class EncryptFileTests {
+
             @Test
             @DisplayName("File should be created")
             void encryptFileCreatingTest() {
-                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
+                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
 
                 assertTrue(Files.exists(encryptedFile), "Encrypted file was not created");
             }
@@ -192,100 +173,103 @@ class MainTest {
             @Test
             @DisplayName("File should have a marker '[ENCRYPTED]'")
             void encryptFileMarkerTest() {
-                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
+                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
 
-                assertTrue(encryptedFile.getFileName().toString().contains("[ENCRYPTED]"), "Encrypted file doesn't have '[ENCRYPTED]' marker. \n" + "File name: " + encryptedFile.getFileName());
+                assertTrue(encryptedFile.getFileName().toString().contains("[ENCRYPTED]"),
+                        "Encrypted file doesn't have '[ENCRYPTED]' marker. File name: " + encryptedFile.getFileName());
             }
         }
 
         @Nested
         @DisplayName("DECRYPT")
-        class decryptFileTests {
+        class DecryptFileTests {
+
             @Test
             @DisplayName("File should be created")
             void decryptedFileCreatingTest() {
-                Path encryptedFilePath = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
-                Path decryptedFilePath = execute(DECRYPT_COMMAND, encryptedFilePath, 5);
+                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
+                Path decryptedFile = execute(DECRYPT_COMMAND, encryptedFile, 5);
 
-                assertTrue(Files.exists(decryptedFilePath), "Decrypted file was not created");
+                assertTrue(Files.exists(decryptedFile), "Decrypted file was not created");
             }
 
             @Test
             @DisplayName("File should have a marker '[DECRYPTED]'")
             void decryptedFileMarkerTest() {
-                Path encryptedFilePath = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
-                Path decryptedFilePath = execute(DECRYPT_COMMAND, encryptedFilePath, 5);
+                Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
+                Path decryptedFile = execute(DECRYPT_COMMAND, encryptedFile, 5);
 
-                assertTrue(decryptedFilePath.getFileName().toString().contains("[DECRYPTED]"), "Decrypted file doesn't have '[DECRYPTED]' marker. \n" + "File name: " + decryptedFilePath.getFileName());
+                assertTrue(decryptedFile.getFileName().toString().contains("[DECRYPTED]"),
+                        "Decrypted file doesn't have '[DECRYPTED]' marker. File name: " + decryptedFile.getFileName());
             }
         }
 
         @Nested
         @DisplayName("BRUTE FORCE")
-        class bruteForceFileTests {
+        class BruteForceFileTests {
+
             @Test
             @DisplayName("File should be created")
             void decryptedFileCreatingTest() {
-                Path decryptedFilePath = execute(BF_COMMAND, inputFilePath_EN, 5);
+                Path bruteForcedFile = execute(BF_COMMAND, inputFilePathEN, 5);
 
-                assertTrue(Files.exists(decryptedFilePath), "Decrypted file was not created");
+                assertTrue(Files.exists(bruteForcedFile), "Decrypted file was not created");
             }
-
         }
     }
 
     @Nested
     @DisplayName("English language tests")
-    class English {
+    class EnglishTests {
 
         @DisplayName("[ENCRYPT] Simple letters encoding")
         @ParameterizedTest
-        @CsvSource({"A, 1, B", "a, 1, b", "A, 25, Z", "a, 25, z",})
+        @CsvSource({"A, 1, B", "a, 1, b", "A, 25, Z", "a, 25, z"})
         void encrypt(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
+            Path testFile = createTestFile("testFile.txt", input);
 
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, testFilePath, key);
+            Path encryptedFile = execute(ENCRYPT_COMMAND, testFile, key);
 
-            String encryptedText = readFile(encryptedFilePath);
+            String encryptedText = readFile(encryptedFile);
             assertEquals(expected, encryptedText);
         }
 
         @DisplayName("[DECRYPT] Simple letters decoding")
         @ParameterizedTest
-        @CsvSource({"B, 1, A", "b, 1, a", "Z, 25, A", "z, 25, a",})
+        @CsvSource({"B, 1, A", "b, 1, a", "Z, 25, A", "z, 25, a"})
         void decrypt(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
+            Path testFile = createTestFile("testFile.txt", input);
 
-            Path encryptedFilePath = execute(DECRYPT_COMMAND, testFilePath, key);
+            Path decryptedFile = execute(DECRYPT_COMMAND, testFile, key);
 
-            String encryptedText = readFile(encryptedFilePath);
-            assertEquals(expected, encryptedText);
+            String decryptedText = readFile(decryptedFile);
+            assertEquals(expected, decryptedText);
         }
 
         @Test
         @DisplayName("[DECRYPT] Decrypted text should be equal to the original.")
         void decryptedFileTextValidate() {
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
-            Path decryptedFilePath = execute(DECRYPT_COMMAND, encryptedFilePath, 5);
+            Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
+            Path decryptedFile = execute(DECRYPT_COMMAND, encryptedFile, 5);
 
-            String decryptedText = readFile(decryptedFilePath);
-            assertEquals(hamlet_EN, decryptedText, "Decrypted text is not the same as original");
+            String decryptedText = readFile(decryptedFile);
+            assertEquals(HAMLET_EN, decryptedText, "Decrypted text is not the same as original");
         }
 
-        @Test()
-        @DisplayName("[BRUTE_FORCE] Decrypted text should be equal to the original.")
+        @Test
+        @DisplayName("[BRUTE FORCE] Decrypted text should be equal to the original.")
         void bruteForceEN() {
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, inputFilePath_EN, 5);
-            Path bruteForcedFilePath = execute(BF_COMMAND, encryptedFilePath, 5);
+            Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathEN, 5);
+            Path bruteForcedFile = execute(BF_COMMAND, encryptedFile, 5);
 
-            assertNotNull(bruteForcedFilePath, "File force was not created after brute force\"");
+            String bruteForcedText = readFile(bruteForcedFile);
 
-            String bruteForcedText = readFile(bruteForcedFilePath);
+            assertEqualsIgnoreCase(HAMLET_EN, bruteForcedText, "Decrypted text is not the same");
+        }
 
-            assertTrue(hamlet_EN.equalsIgnoreCase(bruteForcedText), "Decrypted text is not the same as original even in ignore case");
-            assertEquals(hamlet_EN, bruteForcedText, "Decrypted text is not the same");
+        private void assertEqualsIgnoreCase(String expected, String actual, String message) {
+            assertTrue(expected.equalsIgnoreCase(actual), message);
+            assertEquals(expected, actual, message);
         }
     }
 
@@ -293,123 +277,80 @@ class MainTest {
     @DisplayName("Ukrainian Language Tests")
     @EnabledIf("isUkrainianLanguageTestEnabled")
     class UkrainianLanguageTest {
+
         private static boolean isUkrainianLanguageTestEnabled() {
             return UKRAINIAN_LANGUAGE_TEST;
         }
 
         @DisplayName("[ENCRYPT] Simple letters encoding")
         @ParameterizedTest
-        @CsvSource({"А, 1, Б",
-                "а, 1, б",
-                "А, 32, Я",
-                "а, 32, я",})
+        @CsvSource({"А, 1, Б", "а, 1, б", "А, 32, Я", "а, 32, я"})
         void encrypt(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
+            Path testFile = createTestFile("testFile.txt", input);
 
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, testFilePath, key);
+            Path encryptedFile = execute(ENCRYPT_COMMAND, testFile, key);
 
-            String encryptedText = readFile(encryptedFilePath);
+            String encryptedText = readFile(encryptedFile);
             assertEquals(expected, encryptedText);
         }
 
         @DisplayName("[DECRYPT] Simple letters decryption")
         @ParameterizedTest
-        @CsvSource({"Б, 1, А",
-                "б, 1, а",
-                "Я, 32, А",
-                "я, 32, а",})
+        @CsvSource({"Б, 1, А", "б, 1, а", "Я, 32, А", "я, 32, а"})
         void decrypt(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
+            Path testFile = createTestFile("testFile.txt", input);
 
-            Path encryptedFilePath = execute(DECRYPT_COMMAND, testFilePath, key);
+            Path decryptedFile = execute(DECRYPT_COMMAND, testFile, key);
 
-            String encryptedText = readFile(encryptedFilePath);
-            assertEquals(expected, encryptedText);
+            String decryptedText = readFile(decryptedFile);
+            assertEquals(expected, decryptedText);
         }
 
         @Test
         @DisplayName("[DECRYPT] Decrypted text should be equal to the original.")
-        void decryptTest_UA() {
-            Assumptions.assumeTrue(UKRAINIAN_LANGUAGE_TEST);
+        void decryptTestUA() {
+            Path encryptedFile = execute(ENCRYPT_COMMAND, inputFilePathUA, 5);
+            Path decryptedFile = execute(DECRYPT_COMMAND, encryptedFile, 5);
+            String decryptedText = readFile(decryptedFile);
 
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, inputFilePath_UA, 5);
-            Path decryptedFilePath = execute(DECRYPT_COMMAND, encryptedFilePath, 5);
-            String decryptedText = readFile(decryptedFilePath);
-
-            assertNotNull(decryptedFilePath, "Encrypted file was not created");
-            assertEquals(orwell_UA, decryptedText, "Decrypted text is not the same as original");
+            assertEquals(ORWELL_UA, decryptedText, "Decrypted text is not the same as original");
         }
 
         @Test
-        @DisplayName("[DECRYPT] Decrypted text should be equal to the original.")
-        void bruteForceTest_UA() {
-            Assumptions.assumeTrue(UKRAINIAN_LANGUAGE_TEST);
+        @DisplayName("[BRUTE FORCE] Decrypted text should be equal to the original.")
+        void bruteForceTestUA() {
+            Path encryptedFile = execute(BF_COMMAND, inputFilePathUA, 5);
+            Path bruteForcedFile = execute(BF_COMMAND, encryptedFile, 5);
+            String decryptedText = readFile(bruteForcedFile);
 
-            Path encryptedFilePath = execute(BF_COMMAND, inputFilePath_UA, 5);
-            Path decryptedFilePath = execute(BF_COMMAND, encryptedFilePath, 5);
-            String decryptedText = readFile(decryptedFilePath);
-
-            assertNotNull(decryptedFilePath, "Encrypted file was not created");
-            assertEquals(orwell_UA, decryptedText, "Decrypted text using brute force is not the same as original");
+            assertEquals(ORWELL_UA, decryptedText, "Decrypted text using brute force is not the same as original");
         }
     }
 
     @Nested
     @DisplayName("Validation")
-    class validations {
-        @DisplayName("Negative key should be validated (Better way)")
+    class ValidationTests {
+
+        @DisplayName("Negative key should be validated")
         @ParameterizedTest
-        @CsvSource({"A, -1, B",
-                "a, -1, b",
-                "A, -25, Z",
-                "a, -25, z",
-        })
+        @CsvSource({"A, -1, Z", "a, -1, z", "Z, -25, A", "z, -25, a"})
         void negativeKeyEncryption(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
+            Path testFile = createTestFile("testFile.txt", input);
 
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, testFilePath, key);
+            Path encryptedFile = execute(ENCRYPT_COMMAND, testFile, key);
 
-            String encryptedText = readFile(encryptedFilePath);
-            assertEquals(expected, encryptedText);
-        }
-
-        @DisplayName("Negative key should be validated ")
-        @ParameterizedTest
-        @CsvSource({"A, -1, Z",
-                "a, -1, z",
-                "Z, -25, A",
-                "z, -25, A",
-        })
-        @Disabled
-        void negativeKeyEncryption2(String input, int key, String expected) throws IOException {
-            Path testFilePath = Files.createFile(tempDir.resolve("testFile.txt"));
-            Files.writeString(testFilePath, input);
-
-            Path encryptedFilePath = execute(ENCRYPT_COMMAND, testFilePath, key);
-
-            String encryptedText = readFile(encryptedFilePath);
+            String encryptedText = readFile(encryptedFile);
             assertEquals(expected, encryptedText);
         }
 
         @Test
         @DisplayName("File not exists exception should be handled")
         void fileNotExists() {
-
             Path fakeFilePath = Path.of("/fake/path/file.txt");
-            String[] params = new String[3];
-            params[0] = ENCRYPT_COMMAND;
-            params[1] = fakeFilePath.toString();
-            params[2] = String.valueOf(5);
 
-            try {
-                assertDoesNotThrow(() -> Main.main(params));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            String[] params = {ENCRYPT_COMMAND, "-f", fakeFilePath.toString(), "-k", "5"};
+
+            assertDoesNotThrow(() -> Main.main(params), "Exception was thrown while processing a non-existent file path.");
         }
     }
-
 }
