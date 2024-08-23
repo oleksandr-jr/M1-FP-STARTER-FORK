@@ -26,7 +26,7 @@ public class Main {
                 fileManager.write(newFilePath, encryptedContent);
             }
         } catch (Exception e) {
-            System.out.println("Error message: " + e.getMessage());
+            System.out.println(e.getMessage());
         }
     }
 }
