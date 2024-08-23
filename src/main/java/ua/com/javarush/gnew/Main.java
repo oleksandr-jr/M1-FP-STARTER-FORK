@@ -19,24 +19,14 @@ public class Main {
             if (runOptions.getCommand() == Command.ENCRYPT) {
                 String content = fileManager.read(runOptions.getFilePath());
                 String encryptedContent = cypher.encrypt(content, runOptions.getKey());
-
-                // Add suffix to the file name before .txt
                 String fileName = runOptions.getFilePath().getFileName().toString();
-
-                // file.txt -> file [ENCRYPTED].txt
                 String newFileName = fileName.substring(0, fileName.length() - 4) + " [ENCRYPTED].txt";
 
-                // src/main/resources/text [ENCRYPTED].txt
                 Path newFilePath = runOptions.getFilePath().resolveSibling(newFileName);
-
                 fileManager.write(newFilePath, encryptedContent);
-
             }
-
         } catch (Exception e) {
             System.out.println("Error message: " + e.getMessage());
         }
-
-
     }
 }
