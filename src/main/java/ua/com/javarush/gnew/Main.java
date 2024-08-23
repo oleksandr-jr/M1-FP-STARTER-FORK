@@ -15,9 +15,7 @@ public class Main {
         ArgumentsParser argumentsParser = new ArgumentsParser();
         RunOptions runOptions = argumentsParser.parse(args);
 
-
         try {
-
             if (runOptions.getCommand() == Command.ENCRYPT) {
                 String content = fileManager.read(runOptions.getFilePath());
                 String encryptedContent = cypher.encrypt(content, runOptions.getKey());
