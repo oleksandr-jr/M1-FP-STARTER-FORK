@@ -48,7 +48,7 @@ public class ArgumentsParser {
             throw new IllegalArgumentException("Command (-e, -d, or -bf) is required");
         }
 
-        if (key == null) {
+        if ((command == Command.DECRYPT || command == Command.ENCRYPT) && key == null) {
             throw new IllegalArgumentException("Key is required for encrypt or decrypt mode");
         }
 
