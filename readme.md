@@ -1,4 +1,4 @@
-Test
+TEst
 ## Run the program
 
 ### Commands:
